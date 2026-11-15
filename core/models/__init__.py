@@ -57,6 +57,7 @@ def create_model(name, normalize, info, device):
         raise ValueError('Models for {} not yet supported!'.format(info['data']))
         
     if normalize:
+        print('Normalizing input with mean {} and std {}'.format(info['mean'], info['std']))
         model = torch.nn.Sequential(Normalization(info['mean'], info['std']), backbone)
     else:
         model = torch.nn.Sequential(backbone)

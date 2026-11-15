@@ -57,6 +57,16 @@ class Trainer(object):
             self.hr_model.load_state_dict(checkpoint['model_state_dict'])
             self.hr_model.eval()
             del checkpoint, hr_args
+
+        if self.params.teacher_model is not None:
+            print (f'Using teacher model: {self.params.teacher_model}.')
+            with open(os.path.join(self.params.log_dir, self.params.teacher_model, 'args.txt'), 'r') as f:
+                teacher_args = json.load(f)
+            self.teacher_model = create_model(teacher_args['model'], teacher_args['normalize'], info, device)
+            checkpoint = torch.load(os.path.join(self.params.log_dir, self.params.teacher_model, 'weights-best.pt'), map_location=device)
+            self.teacher_model.load_state_dict(checkpoint['model_state_dict'])
+            self.teacher_model.eval()
+            del checkpoint, teacher_args
         
         self.attack, self.eval_attack = self.init_attack(self.model, self.criterion, self.params.attack, self.params.attack_eps, 
                                                          self.params.attack_iter, self.params.attack_step)
@@ -123,7 +133,11 @@ class Trainer(object):
             
             if adversarial:
                 if self.params.helper_model is not None and self.params.beta is not None:
-                    loss, batch_metrics = self.hat_loss(x, y, h=self.params.h, beta=self.params.beta, gamma=self.params.gamma)
+                    print('Using HAT loss.')
+                    pass
+                    # loss, batch_metrics = self.hat_loss(x, y, h=self.params.h, beta=self.params.beta, gamma=self.params.gamma)
+                elif self.params.beta is not None and self.params.teacher_model is not None:
+                    loss, batch_metrics = self.alg_loss(x, y, beta=self.params.beta)
                 elif self.params.beta is not None and self.params.mart:
                     loss, batch_metrics = self.mart_loss(x, y, beta=self.params.beta)
                 elif self.params.beta is not None:
@@ -140,7 +154,7 @@ class Trainer(object):
             if self.params.scheduler in ['cyclic']:
                 self.scheduler.step()
             
-            metrics = metrics.append(pd.DataFrame(batch_metrics, index=[0]), ignore_index=True)
+            metrics = metrics._append(pd.DataFrame(batch_metrics, index=[0]), ignore_index=True)
         
         if self.params.scheduler in ['step', 'converge', 'cosine', 'cosinew']:
             self.scheduler.step()

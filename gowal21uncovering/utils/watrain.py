@@ -21,6 +21,7 @@ from core.utils import seed
 from .hat import at_hat_loss
 from .hat import hat_loss
 from .trades import trades_loss
+from .alg import *
 
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -93,13 +94,21 @@ class WATrainer(Trainer):
             x, y = x.to(device), y.to(device)
             
             if adversarial:
-                if self.params.h is not None and self.params.beta is not None:
-                    loss, batch_metrics = self.hat_loss(x, y, h=self.params.h, beta=self.params.beta, gamma=self.params.gamma)
+                if self.params.helper_model is not None and self.params.beta is not None:
+                    print('Using HAT loss.')
+                    pass
+                    # loss, batch_metrics = self.hat_loss(x, y, h=self.params.h, beta=self.params.beta, gamma=self.params.gamma)
+                elif self.params.beta is not None and self.params.teacher_model is not None:
+                    # print('Using ALG loss.')
+                    loss, batch_metrics = self.alg_loss(x, y, beta=self.params.beta, gamma=self.params.gamma)
                 elif self.params.beta is not None and self.params.mart:
+                    # print('Using MART loss.')
                     loss, batch_metrics = self.mart_loss(x, y, beta=self.params.beta)
                 elif self.params.beta is not None:
+                    # print('Using TRADES loss.')
                     loss, batch_metrics = self.trades_loss(x, y, beta=self.params.beta)
                 else:
+                    # print('Using standard adversarial loss.')
                     loss, batch_metrics = self.adversarial_loss(x, y)
             else:
                 loss, batch_metrics = self.standard_loss(x, y)
@@ -114,7 +123,7 @@ class WATrainer(Trainer):
             global_step = (epoch - 1) * self.update_steps + update_iter
             ema_update(self.wa_model, self.model, global_step, decay_rate=self.params.tau, 
                        warmup_steps=self.warmup_steps, dynamic_decay=True)
-            metrics = metrics.append(pd.DataFrame(batch_metrics, index=[0]), ignore_index=True)
+            metrics = metrics._append(pd.DataFrame(batch_metrics, index=[0]), ignore_index=True)
         
         if self.params.scheduler in ['step', 'converge', 'cosine', 'cosinew']:
             self.scheduler.step()
@@ -149,7 +158,29 @@ class WATrainer(Trainer):
         loss, batch_metrics = trades_loss(self.model, x, y, self.optimizer, step_size=self.params.attack_step, 
                                           epsilon=self.params.attack_eps, perturb_steps=self.params.attack_iter, 
                                           beta=beta, attack=self.params.attack, **other_args)
-        return loss, batch_metrics  
+        return loss, batch_metrics
+
+    def alg_loss(self, x, y, beta, gamma):
+        """
+        Adversarial training with feature alignment.
+        """
+        other_args = {'label_smoothing': self.params.label_smoothing, 'alg_fun': self.params.alg_fun}
+        if self.params.robust_loss == 'kl':
+            # print('Using ALG loss with KL divergence.')
+            loss, batch_metrics = kl_alg_loss(self.model, self.teacher_model, x, y, self.optimizer, step_size=self.params.attack_step, 
+                                          epsilon=self.params.attack_eps, perturb_steps=self.params.attack_iter, 
+                                          beta=beta, gamma=gamma, attack=self.params.attack, top_k=self.params.top_k, radius=self.params.radius, **other_args)
+        elif self.params.robust_loss == 'ce':
+            # print('Using AT-ALG loss.')
+            loss, batch_metrics = at_alg_loss(self.model, self.teacher_model, x, y, self.optimizer, step_size=self.params.attack_step, 
+                                          epsilon=self.params.attack_eps, perturb_steps=self.params.attack_iter, 
+                                          beta=beta, gamma=gamma, attack=self.params.attack, top_k=self.params.top_k, radius=self.params.radius, **other_args)
+        else:
+            loss, batch_metrics = trades_alg_loss(self.model, self.teacher_model, x, y, self.optimizer, step_size=self.params.attack_step, 
+                                          epsilon=self.params.attack_eps, perturb_steps=self.params.attack_iter, 
+                                          beta=beta, gamma=gamma, attack=self.params.attack, top_k=self.params.top_k, radius=self.params.radius, **other_args)
+
+        return loss, batch_metrics
 
     
     def eval(self, dataloader, adversarial=False):

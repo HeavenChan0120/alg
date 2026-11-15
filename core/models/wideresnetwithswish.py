@@ -127,13 +127,19 @@ class WideResNet(nn.Module):
         num_blocks = (depth - 4) // 6
         self.init_conv = nn.Conv2d(num_input_channels, num_channels[0],
                                    kernel_size=3, stride=1, padding=1, bias=False)
-        self.layer = nn.Sequential(
-            _BlockGroup(num_blocks, num_channels[0], num_channels[1], 1,
-                        activation_fn=activation_fn),
-            _BlockGroup(num_blocks, num_channels[1], num_channels[2], 2,
-                        activation_fn=activation_fn),
-            _BlockGroup(num_blocks, num_channels[2], num_channels[3], 2,
-                        activation_fn=activation_fn))
+        # self.layer = nn.Sequential(
+        #     _BlockGroup(num_blocks, num_channels[0], num_channels[1], 1,
+        #                 activation_fn=activation_fn),
+        #     _BlockGroup(num_blocks, num_channels[1], num_channels[2], 2,
+        #                 activation_fn=activation_fn),
+        #     _BlockGroup(num_blocks, num_channels[2], num_channels[3], 2,
+        #                 activation_fn=activation_fn))
+        self.block1 = _BlockGroup(num_blocks, num_channels[0], num_channels[1], 1,
+                                  activation_fn=activation_fn)
+        self.block2 = _BlockGroup(num_blocks, num_channels[1], num_channels[2], 2,
+                                  activation_fn=activation_fn)
+        self.block3 = _BlockGroup(num_blocks, num_channels[2], num_channels[3], 2,
+                                  activation_fn=activation_fn)
         self.batchnorm = nn.BatchNorm2d(num_channels[3], momentum=0.01)
         self.relu = activation_fn(inplace=True)
         self.logits = nn.Linear(num_channels[3], num_classes)
@@ -149,7 +155,7 @@ class WideResNet(nn.Module):
             elif isinstance(m, nn.Linear):
                 m.bias.data.zero_()
     
-    def forward(self, x):
+    def forward(self, x, return_feat=False):
         if self.padding > 0:
             x = F.pad(x, (self.padding,) * 4)
         if x.is_cuda:
@@ -159,12 +165,21 @@ class WideResNet(nn.Module):
             out = (x - self.mean_cuda) / self.std_cuda
         else:
             out = (x - self.mean) / self.std
-        
+        feats = {}
         out = self.init_conv(out)
-        out = self.layer(out)
+        feats['conv1'] = out
+        out = self.block1(out)
+        feats['block1'] = out
+        out = self.block2(out)
+        feats['block2'] = out
+        out = self.block3(out)
+        feats['block3'] = out
         out = self.relu(self.batchnorm(out))
         out = F.avg_pool2d(out, 8)
         out = out.view(-1, self.num_channels)
+        feats['penultimate'] = out
+        if return_feat:
+            return self.logits(out), feats
         return self.logits(out)
     
     

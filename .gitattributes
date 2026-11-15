@@ -1,0 +1,2 @@
+log/teacher-cifar10/*.pt filter=lfs diff=lfs merge=lfs -text
+log/teacher-cifar10-500K/*.pt filter=lfs diff=lfs merge=lfs -text

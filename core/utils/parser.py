@@ -37,11 +37,13 @@ def parser_train():
     
     parser.add_argument('--h', default=2.0, type=float, help='Parameter h to compute helper examples (x + h*r) for HAT.')
     parser.add_argument('--helper-model', type=str, default=None, help='Helper model weights file name for HAT.')
+    parser.add_argument('--teacher-model', type=str, default=None, help='Teacher model weights file name.')
     parser.add_argument('--beta', default=None, type=float, help='Stability regularization, i.e., 1/lambda in TRADES \
     or weight of robust loss in HAT.')
     parser.add_argument('--gamma', default=1.0, type=float, help='Weight of helper loss in HAT.')
-    parser.add_argument('--robust-loss', default='kl', choices=['ce', 'kl'], type=str, help='Type of robust loss in HAT.')
-    
+    parser.add_argument('--robust-loss', default='kl', choices=['ce', 'kl', 'trades-alg'], type=str, help='Type of robust loss in HAT.')
+    parser.add_argument('--alg-fun', type=str, default='indexed', help='Type of frequency alignment function.')
+
     parser.add_argument('--lr', type=float, default=0.21, help='Learning rate for optimizer (SGD).')
     parser.add_argument('--weight-decay', type=float, default=5e-4, help='Optimizer (SGD) weight decay.')
     parser.add_argument('--scheduler', choices=SCHEDULERS, default='cyclic', help='Type of scheduler.')
@@ -65,6 +67,9 @@ def parser_train():
                         default='/cluster/scratch/rarade/cifar10s/ti_500K_pseudo_labeled.pickle')
     
     parser.add_argument('--seed', type=int, default=1, help='Random seed.')
+
+    parser.add_argument('--top-k', type=int, default=40, help='top-k features for frequency alignment')
+    parser.add_argument('--radius', type=float, default=0.5, help='radius for frequency alignment')
     return parser
 
 

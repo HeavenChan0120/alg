@@ -121,13 +121,18 @@ for epoch in range(1, NUM_ADV_EPOCHS+1):
     logger.log('Adversarial Accuracy-\tEval: {:.2f}%.'.format(eval_adv_acc*100))
     epoch_metrics['eval_adversarial_acc'] = eval_adv_acc
     
-    if eval_adv_acc >= old_score[1]:
+    # if eval_adv_acc >= old_score[1]:
+    #     old_score[0], old_score[1] = test_acc, eval_adv_acc
+    #     trainer.save_model(WEIGHTS)
+    if eval_adv_acc > old_score[1] or (
+        eval_adv_acc == old_score[1] and test_acc > old_score[0]
+    ):
         old_score[0], old_score[1] = test_acc, eval_adv_acc
         trainer.save_model(WEIGHTS)
     trainer.save_model(os.path.join(LOG_DIR, 'weights-last.pt'))
     
     logger.log('Time taken: {}'.format(format_time(time.time()-start)))
-    metrics = metrics.append(pd.DataFrame(epoch_metrics, index=[0]), ignore_index=True)
+    metrics = metrics._append(pd.DataFrame(epoch_metrics, index=[0]), ignore_index=True)
     metrics.to_csv(os.path.join(LOG_DIR, 'stats_adv.csv'), index=False)
 
     
